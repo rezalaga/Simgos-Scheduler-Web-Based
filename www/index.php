@@ -317,19 +317,20 @@ if (isset($_GET['action'])) {
             $newNext = gmdate('Y-m-d H:i:s', time() + $elapsed);
             $newNextFmt = fmtDate($newNext);
             $pdo->prepare("UPDATE tasks SET last_executed_at = NOW(), next_execution_at = ? WHERE id = ?")->execute([$newNext, $taskId]);
-            $pdo->prepare("INSERT INTO logs (task_id, server_id, status, title, server_name, base_url, path, method, http_code, response_body, response_time_ms, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")->execute([
-                $taskId, $task['server_id'], $status, $task['title'], $task['server_name'], $task['base_url'], $task['path'], $method, $http_code, $response ?: '', $response_time_ms, $err_msg,
-            ]);
-            $logId = $pdo->lastInsertId();
 
+            $logId = null;
             $prettyResponse = null;
-            if ($response) {
-                $decoded = json_decode($response, true);
-                $prettyResponse = $decoded !== null ? json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : $response;
+            $decoded = json_decode($response, true);
+            if ($decoded !== null && count($decoded) > 0) {
+                $pdo->prepare("INSERT INTO logs (task_id, server_id, status, title, server_name, base_url, path, method, http_code, response_body, response_time_ms, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")->execute([
+                    $taskId, $task['server_id'], $status, $task['title'], $task['server_name'], $task['base_url'], $task['path'], $method, $http_code, $response, $response_time_ms, $err_msg,
+                ]);
+                $logId = (int)$pdo->lastInsertId();
+                $prettyResponse = json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             }
 
             echo json_encode([
-                'ok' => true, 'log_id' => (int)$logId, 'status' => $status,
+                'ok' => true, 'log_id' => $logId, 'status' => $status,
                 'http_code' => $http_code, 'response_time_ms' => $response_time_ms,
                 'error_message' => $err_msg, 'next_execution_at' => $newNextFmt,
                 'response_body_pretty' => $prettyResponse,
