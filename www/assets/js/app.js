@@ -143,8 +143,8 @@ function renderActiveTasks() {
                         <circle class="fill ${fillClass}" cx="36" cy="36" r="${r}"
                             stroke-dasharray="${circ}" stroke-dashoffset="${offset}"/>
                     </g>
-                    <text x="36" y="31" class="donut-text">${isExecuting ? 'JLN' : remaining + 's'}</text>
-                    <text x="36" y="45" class="donut-label">${isExecuting ? '' : (remaining > 0 ? 'lagi' : 'SKRG')}</text>
+                    <text x="36" y="31" class="donut-text">${isExecuting ? 'RUN' : remaining + 's'}</text>
+                    <text x="36" y="45" class="donut-label">${isExecuting ? '' : (remaining > 0 ? 'lagi' : 'NOW')}</text>
                 </svg>
             </div>
             <div class="task-donut-info">
