@@ -1,6 +1,6 @@
 # Simgos Scheduler Web Based
 
-Scheduler API berbasis web dengan indikator **donut countdown** untuk memonitor dan mengeksekusi task secara otomatis. Backend menggunakan **PHP native**, frontend **Bootstrap 5 + vanilla JS**, berjalan di **Docker**.
+Scheduler API berbasis web dengan indikator **donut countdown** untuk memonitor dan mengeksekusi task secara otomatis. Backend menggunakan **PHP native**, **HTML5** frontend **Bootstrap + vanilla JS**, berjalan di **Docker**.
 
 ![Screenshot Aplikasi](www/assets/images/screenshot.png)
 
