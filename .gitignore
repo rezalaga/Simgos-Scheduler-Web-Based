@@ -1,0 +1,19 @@
+# Environment / secrets
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker data (anonymous volumes, runtime — not application code)
+data/
+
+# Scheduler worker (kept for reference, not part of active app)
+www/scheduler.php
