@@ -337,6 +337,80 @@ if (isset($_GET['action'])) {
             exit;
         }
 
+        elseif ($action === 'download-import-template') {
+            header('Content-Type: text/plain; charset=utf-8');
+            header('Content-Disposition: attachment; filename="import-template.txt"');
+            echo "# ============================================================\n";
+            echo "# IMPORT TEMPLATE (Servers & Tasks)\n";
+            echo "# ============================================================\n";
+            echo "# Instructions:\n";
+            echo "# 1. Remove # at the start of a line to activate the data\n";
+            echo "# 2. Separate columns with | (pipe)\n";
+            echo "# 3. Server must exist before Tasks that reference it\n";
+            echo "#\n";
+            echo "# ------------------------------------------------------------\n";
+            echo "# [SERVERS]\n";
+            echo "# Format: Server Name | Base URL\n";
+            echo "# ------------------------------------------------------------\n";
+            echo "RS Random|http://localhost:8080/api\n";
+            echo "\n";
+            echo "# ------------------------------------------------------------\n";
+            echo "# [TASKS]\n";
+            echo "# Format: Server Name | Task Title | API Path | Success Interval (sec) | Error Interval (sec) | Timeout (ms)\n";
+            echo "# ------------------------------------------------------------\n";
+            echo "RS Random|Organization|/organization/send|60|30|5000\n";
+            echo "RS Random|Patient|/patient/getIhs|60|30|5000\n";
+            echo "RS Random|Check Health|/health|30|15|3000\n";
+            exit;
+        }
+
+        elseif ($action === 'import-servers') {
+            if (empty($_FILES['file'])) throw new Exception('File not found');
+            $content = file_get_contents($_FILES['file']['tmp_name']);
+            $lines = explode("\n", $content);
+            $count = 0;
+            $stmt = $pdo->prepare("INSERT INTO servers (name, base_url) VALUES (?, ?)");
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if (!$line || $line[0] === '#' || str_starts_with($line, '[')) continue;
+                $parts = array_map('trim', explode('|', $line));
+                if (count($parts) >= 2 && $parts[0] && $parts[1]) {
+                    $stmt->execute([$parts[0], rtrim($parts[1], '/')]);
+                    $count++;
+                }
+            }
+            echo json_encode(['ok' => true, 'count' => $count]);
+        }
+
+        elseif ($action === 'import-tasks') {
+            if (empty($_FILES['file'])) throw new Exception('File not found');
+            $content = file_get_contents($_FILES['file']['tmp_name']);
+            $lines = explode("\n", $content);
+            $count = 0;
+            $servers = $pdo->query("SELECT id, name FROM servers")->fetchAll(PDO::FETCH_KEY_PAIR);
+            $stmt = $pdo->prepare("INSERT INTO tasks (server_id, title, path, method, execute_interval_sec, error_interval_sec, response_timeout_ms, next_execution_at) VALUES (?, ?, ?, 'GET', ?, ?, ?, ?)");
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if (!$line || $line[0] === '#' || str_starts_with($line, '[')) continue;
+                $parts = array_map('trim', explode('|', $line));
+                if (count($parts) >= 3) {
+                    $serverName = $parts[0];
+                    $title = $parts[1];
+                    $path = '/' . ltrim($parts[2], '/');
+                    $interval = (int)($parts[3] ?? 60);
+                    $errorInterval = (int)($parts[4] ?? 30);
+                    $timeout = (int)($parts[5] ?? 5000);
+                    $serverId = $servers[$serverName] ?? null;
+                    if ($serverId) {
+                        $next = gmdate('Y-m-d H:i:s', time() + $interval);
+                        $stmt->execute([$serverId, $title, $path, $interval, $errorInterval, $timeout, $next]);
+                        $count++;
+                    }
+                }
+            }
+            echo json_encode(['ok' => true, 'count' => $count]);
+        }
+
         else {
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action']);
@@ -352,17 +426,17 @@ if (isset($_GET['action'])) {
 $page = $_GET['page'] ?? 'dashboard';
 function page_title($p) {
     return match($p) {
-        'servers' => 'Server',
-        'tasks' => 'Tugas',
-        'logs' => 'Log',
-        'guide' => 'Panduan',
-        'settings' => 'Pengaturan',
-        default => 'Dasbor',
+        'servers' => 'Servers',
+        'tasks' => 'Tasks',
+        'logs' => 'Logs',
+        'guide' => 'Guide',
+        'settings' => 'Settings',
+        default => 'Dashboard',
     };
 }
 ?>
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -376,7 +450,11 @@ function page_title($p) {
 <!-- Topbar -->
 <nav class="topbar">
     <div class="d-flex align-items-center">
-        <button class="hamburger" onclick="toggleSidebar()" title="Alihkan sidebar">☰</button>
+        <button class="hamburger" onclick="toggleSidebar()" title="Toggle sidebar">☰</button>
+        <button class="theme-btn me-2" onclick="toggleTheme()" title="Toggle theme">
+            <span class="light-icon"><i class="bi bi-moon-stars"></i></span>
+            <span class="dark-icon"><i class="bi bi-sun"></i></span>
+        </button>
         <a href="?page=dashboard" class="topbar-brand text-decoration-none">
             <img src="assets/images/simgos-logo.png" alt="SIMGOS" width="30" height="30" style="border-radius:4px;">
             Simgos Scheduler
@@ -394,36 +472,36 @@ function page_title($p) {
     <!-- Sidebar -->
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-inner">
-            <div class="nav-label">Navigasi</div>
+            <div class="nav-label">Navigation</div>
             <ul class="nav flex-column mb-auto">
                 <li class="nav-item">
                     <a href="?page=dashboard" class="nav-link <?=$page==='dashboard'?'active':''?>" onclick="closeSidebarMobile()">
-                        <i class="bi bi-speedometer2"></i><span>Dasbor</span>
+                        <i class="bi bi-speedometer2"></i><span>Dashboard</span>
                     </a>
                 </li>
                 <li>
                     <a href="?page=servers" class="nav-link <?=$page==='servers'?'active':''?>" onclick="closeSidebarMobile()">
-                        <i class="bi bi-server"></i><span>Server</span>
+                        <i class="bi bi-server"></i><span>Servers</span>
                     </a>
                 </li>
                 <li>
                     <a href="?page=tasks" class="nav-link <?=$page==='tasks'?'active':''?>" onclick="closeSidebarMobile()">
-                        <i class="bi bi-list-task"></i><span>Tugas</span>
+                        <i class="bi bi-list-task"></i><span>Tasks</span>
                     </a>
                 </li>
                 <li>
                     <a href="?page=logs" class="nav-link <?=$page==='logs'?'active':''?>" onclick="closeSidebarMobile()">
-                        <i class="bi bi-journal-text"></i><span>Log</span>
+                        <i class="bi bi-journal-text"></i><span>Logs</span>
                     </a>
                 </li>
                 <li>
                     <a href="?page=guide" class="nav-link <?=$page==='guide'?'active':''?>" onclick="closeSidebarMobile()">
-                        <i class="bi bi-book"></i><span>Panduan</span>
+                        <i class="bi bi-book"></i><span>Guide</span>
                     </a>
                 </li>
                 <li>
                     <a href="?page=settings" class="nav-link <?=$page==='settings'?'active':''?>" onclick="closeSidebarMobile()">
-                        <i class="bi bi-gear"></i><span>Pengaturan</span>
+                        <i class="bi bi-gear"></i><span>Settings</span>
                     </a>
                 </li>
             </ul>
@@ -435,147 +513,164 @@ function page_title($p) {
     <main class="main-content" id="main-content">
         <?php if ($page === 'dashboard'): ?>
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>Dasbor</h4>
-            <button class="btn btn-outline-secondary btn-sm" onclick="refreshDashboard()"><i class="bi bi-arrow-clockwise"></i> Segarkan</button>
+            <h4 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h4>
+            <button class="btn btn-outline-secondary btn-sm" onclick="refreshDashboard()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
         </div>
         <div class="row g-3 mb-4" id="stats-cards">
-            <div class="col-md-3"><div class="card bg-primary text-white"><div class="card-body"><h6>Server</h6><h2 id="stat-servers">0</h2></div></div></div>
-            <div class="col-md-3"><div class="card bg-success text-white"><div class="card-body"><h6>Tugas Aktif</h6><h2 id="stat-active">0</h2></div></div></div>
-            <div class="col-md-3"><div class="card bg-info text-white"><div class="card-body"><h6>Total Eksekusi</h6><h2 id="stat-total-logs">0</h2></div></div></div>
-            <div class="col-md-3"><div class="card bg-warning text-dark"><div class="card-body"><h6>Gagal</h6><h2 id="stat-failed">0</h2></div></div></div>
+            <div class="col-md-3"><div class="card bg-primary text-white"><div class="card-body"><h6>Servers</h6><h2 id="stat-servers">0</h2></div></div></div>
+            <div class="col-md-3"><div class="card bg-success text-white"><div class="card-body"><h6>Active Tasks</h6><h2 id="stat-active">0</h2></div></div></div>
+            <div class="col-md-3"><div class="card bg-info text-white"><div class="card-body"><h6>Total Executions</h6><h2 id="stat-total-logs">0</h2></div></div></div>
+            <div class="col-md-3"><div class="card bg-warning text-dark"><div class="card-body"><h6>Failed</h6><h2 id="stat-failed">0</h2></div></div></div>
         </div>
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-play-circle me-1"></i>Tugas Aktif</span>
-                <small class="text-muted">Eksekusi otomatis — biarkan halaman ini terbuka</small>
+                <span><i class="bi bi-play-circle me-1"></i>Active Tasks</span>
+                <small class="text-muted">Executes automatically — keep this page open</small>
             </div>
             <div class="card-body p-0" id="active-tasks-container">
-                <div class="text-center text-muted py-3">Memuat...</div>
+                <div class="text-center text-muted py-3">Loading...</div>
             </div>
         </div>
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-clock-history me-1"></i>Eksekusi Terbaru</span>
-                <small class="text-muted" id="auto-refresh-indicator">Muat ulang: 10 detik</small>
+                <span><i class="bi bi-clock-history me-1"></i>Recent Executions</span>
+                <small class="text-muted" id="auto-refresh-indicator">Auto-refresh: 10s</small>
             </div>
             <div class="card-body p-0" id="recent-logs-container">
-                <div class="text-center text-muted py-3">Memuat...</div>
+                <div class="text-center text-muted py-3">Loading...</div>
             </div>
         </div>
 
         <?php elseif ($page === 'servers'): ?>
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="mb-0"><i class="bi bi-server me-2"></i>Server</h4>
-            <button class="btn btn-primary" onclick="openServerModal()"><i class="bi bi-plus-lg"></i> Tambah Server</button>
+            <h4 class="mb-0"><i class="bi bi-server me-2"></i>Servers</h4>
+            <div class="d-flex gap-1">
+                <button class="btn btn-outline-secondary btn-sm" onclick="importFromFile('server')"><i class="bi bi-upload"></i> Import</button>
+                <button class="btn btn-primary" onclick="openServerModal()"><i class="bi bi-plus-lg"></i> Add Server</button>
+            </div>
         </div>
         <div class="card">
             <div class="card-body p-0" id="servers-table-container">
-                <div class="text-center text-muted py-3">Memuat...</div>
+                <div class="text-center text-muted py-3">Loading...</div>
             </div>
         </div>
 
         <?php elseif ($page === 'tasks'): ?>
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-            <h4 class="mb-0"><i class="bi bi-list-task me-2"></i>Tugas</h4>
+            <h4 class="mb-0"><i class="bi bi-list-task me-2"></i>Tasks</h4>
             <div class="d-flex gap-1">
-                <button class="btn btn-outline-success btn-sm" onclick="startSelectedTasks()"><i class="bi bi-play-circle"></i> Mulai Dipilih</button>
-                <button class="btn btn-outline-danger btn-sm" onclick="stopSelectedTasks()"><i class="bi bi-stop-circle"></i> Hentikan Dipilih</button>
+                <button class="btn btn-outline-success btn-sm" onclick="startSelectedTasks()"><i class="bi bi-play-circle"></i> Start Selected</button>
+                <button class="btn btn-outline-danger btn-sm" onclick="stopSelectedTasks()"><i class="bi bi-stop-circle"></i> Stop Selected</button>
                 <div class="border-start mx-1"></div>
-                <button class="btn btn-outline-success btn-sm" onclick="startAllTasks()"><i class="bi bi-play-circle"></i> Mulai Semua</button>
-                <button class="btn btn-outline-danger btn-sm" onclick="stopAllTasks()"><i class="bi bi-stop-circle"></i> Hentikan Semua</button>
+                <button class="btn btn-outline-success btn-sm" onclick="startAllTasks()"><i class="bi bi-play-circle"></i> Start All</button>
+                <button class="btn btn-outline-danger btn-sm" onclick="stopAllTasks()"><i class="bi bi-stop-circle"></i> Stop All</button>
                 <div class="border-start mx-1"></div>
-                <button class="btn btn-primary btn-sm" onclick="openTaskModal()"><i class="bi bi-plus-lg"></i> Tambah</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="importFromFile('task')"><i class="bi bi-upload"></i> Import</button>
+                <button class="btn btn-primary btn-sm" onclick="openTaskModal()"><i class="bi bi-plus-lg"></i> Add</button>
             </div>
         </div>
         <div class="card">
             <div class="card-body p-0" id="tasks-table-container">
-                <div class="text-center text-muted py-3">Memuat...</div>
+                <div class="text-center text-muted py-3">Loading...</div>
             </div>
         </div>
 
         <?php elseif ($page === 'logs'): ?>
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="mb-0"><i class="bi bi-journal-text me-2"></i>Log Eksekusi</h4>
+            <h4 class="mb-0"><i class="bi bi-journal-text me-2"></i>Execution Logs</h4>
             <div>
-                <button class="btn btn-outline-danger btn-sm me-2" onclick="clearLogs()"><i class="bi bi-trash"></i> Hapus Semua</button>
-                <button class="btn btn-outline-secondary btn-sm" onclick="refreshLogs()"><i class="bi bi-arrow-clockwise"></i> Segarkan</button>
+                <button class="btn btn-outline-danger btn-sm me-2" onclick="clearLogs()"><i class="bi bi-trash"></i> Clear All</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="refreshLogs()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
             </div>
         </div>
         <div class="row mb-3">
             <div class="col-auto">
                 <select class="form-select form-select-sm" id="log-status-filter" onchange="refreshLogs()">
-                    <option value="">Semua Status</option>
-                    <option value="success">Sukses</option>
-                    <option value="error">Gagal</option>
+                    <option value="">All Status</option>
+                    <option value="success">Success</option>
+                    <option value="error">Error</option>
                 </select>
             </div>
             <div class="col-auto" id="log-task-filter-container">
                 <select class="form-select form-select-sm" id="log-task-filter" onchange="refreshLogs()">
-                    <option value="">Semua Tugas</option>
+                    <option value="">All Tasks</option>
                 </select>
             </div>
         </div>
         <div class="card">
             <div class="card-body p-0" id="logs-table-container">
-                <div class="text-center text-muted py-3">Memuat...</div>
+                <div class="text-center text-muted py-3">Loading...</div>
             </div>
         </div>
         <nav class="mt-3" id="logs-pagination"></nav>
         <?php elseif ($page === 'guide'): ?>
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="mb-0"><i class="bi bi-book me-2"></i>Panduan Penggunaan</h4>
+            <h4 class="mb-0"><i class="bi bi-book me-2"></i>Usage Guide</h4>
         </div>
         <div class="card mb-3">
             <div class="card-body">
-                <h5 class="card-title">1. Tambahkan Server</h5>
-                <p class="card-text">Masuk ke menu <strong>Server</strong>, klik <span class="badge bg-primary"><i class="bi bi-plus-lg"></i> Tambah Server</span>. Isi nama server dan URL endpoint API yang akan dijadwalkan.</p>
+                <h5 class="card-title">1. Add a Server</h5>
+                <p class="card-text">Go to <strong>Servers</strong>, click <span class="badge bg-primary"><i class="bi bi-plus-lg"></i> Add Server</span>. Enter the server name and API base URL. You can also <span class="badge bg-outline-secondary"><i class="bi bi-upload"></i> Import</span> multiple servers from a .txt file using the provided template.</p>
             </div>
         </div>
         <div class="card mb-3">
             <div class="card-body">
-                <h5 class="card-title">2. Buat Tugas</h5>
-                <p class="card-text">Masuk ke menu <strong>Tugas</strong>, klik <span class="badge bg-primary"><i class="bi bi-plus-lg"></i> Tambah</span>. Pilih server yang sudah dibuat, isi judul tugas, path API, interval eksekusi (dalam detik), dan batas waktu.</p>
-                <p class="text-muted small mb-0">Catatan: Semua tugas menggunakan metode GET. Header dan body tidak diperlukan.</p>
+                <h5 class="card-title">2. Create a Task</h5>
+                <p class="card-text">Go to <strong>Tasks</strong>, click <span class="badge bg-primary"><i class="bi bi-plus-lg"></i> Add</span>. Select a server, enter the task title, API path, execution interval (seconds), and timeout. You can also <span class="badge bg-outline-secondary"><i class="bi bi-upload"></i> Import</span> multiple tasks from a .txt file.</p>
+                <p class="text-muted small mb-0">Note: All tasks use GET method. Headers and body are not required.</p>
             </div>
         </div>
         <div class="card mb-3">
             <div class="card-body">
-                <h5 class="card-title">3. Jalankan Tugas</h5>
-                <p class="card-text">Tugas akan berjalan otomatis melalui halaman <strong>Dasbor</strong>. Cukup biarkan halaman Dasbor terbuka — setiap tugas memiliki indikator donut yang menunjukkan waktu tersisa hingga eksekusi berikutnya.</p>
-                <p class="card-text">Tugas hanya akan berjalan jika halaman Dasbor aktif. Semakin banyak tugas aktif, semakin sering halaman melakukan permintaan ke API target.</p>
+                <h5 class="card-title">3. Import from File</h5>
+                <p class="card-text">Click <span class="badge bg-outline-secondary"><i class="bi bi-upload"></i> Import</span> on the Servers or Tasks page. A modal will open where you can download the template file. Edit the template with your data, then upload it. The template uses pipe (<code>|</code>) separated values. Lines starting with <code>#</code> are ignored as comments.</p>
             </div>
         </div>
         <div class="card mb-3">
             <div class="card-body">
-                <h5 class="card-title">4. Pantau Log</h5>
-                <p class="card-text">Masuk ke menu <strong>Log</strong> untuk melihat riwayat eksekusi. Filter berdasarkan status atau tugas tertentu. Klik tombol <span class="badge bg-info text-dark"><i class="bi bi-eye"></i> Detail</span> untuk melihat respons API.</p>
+                <h5 class="card-title">4. Run Tasks</h5>
+                <p class="card-text">Tasks run automatically from the <strong>Dashboard</strong>. Keep the Dashboard page open — each task has a donut indicator showing the time remaining until the next execution.</p>
+                <p class="card-text">Tasks only execute while the Dashboard page is active. The more active tasks, the more requests are sent to the target API.</p>
             </div>
         </div>
         <div class="card mb-3">
             <div class="card-body">
-                <h5 class="card-title">5. Pengaturan Zona Waktu</h5>
-                <p class="card-text">Masuk ke menu <strong>Pengaturan</strong> untuk mengubah zona waktu. Pengaturan ini memengaruhi tampilan jam di pojok kanan atas dan jadwal eksekusi tugas.</p>
-                <p class="text-muted small mb-0">Catatan: Semua data waktu disimpan dalam UTC di database. Zona waktu hanya mengubah tampilan, bukan data.</p>
+                <h5 class="card-title">5. Monitor Logs</h5>
+                <p class="card-text">Go to <strong>Logs</strong> to view the execution history. Filter by status or a specific task. Click <span class="badge bg-info text-dark"><i class="bi bi-eye"></i> Detail</span> to see the API response with pretty-print and a copy button.</p>
+            </div>
+        </div>
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">6. Theme & Display</h5>
+                <p class="card-text">Click the <i class="bi bi-moon-stars"></i> / <i class="bi bi-sun"></i> icon next to the hamburger menu to toggle between dark and light mode. The theme automatically follows your system preference and your choice is saved.</p>
+            </div>
+        </div>
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">7. Timezone Settings</h5>
+                <p class="card-text">Go to <strong>Settings</strong> to change the timezone. This affects the clock display at the top right and the task execution schedule.</p>
+                <p class="text-muted small mb-0">Note: All time data is stored in UTC in the database. The timezone only affects the display, not the data.</p>
             </div>
         </div>
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Catatan Penting</h5>
+                <h5 class="card-title">Important Notes</h5>
                 <ul class="mb-0">
-                    <li>Halaman Dasbor harus tetap terbuka agar tugas berjalan otomatis.</li>
-                    <li>Setelah perubahan kode JavaScript, lakukan <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> (muat ulang paksa).</li>
-                    <li>Gunakan tombol Jalankan Sekarang (<i class="bi bi-play-fill"></i>) di halaman Tugas untuk menjalankan tugas secara manual.</li>
-                    <li>Tugas yang dinonaktifkan (Nonaktif) tidak akan dijalankan oleh Dasbor.</li>
+                    <li>The Dashboard page must remain open for tasks to run automatically.</li>
+                    <li>After JavaScript changes, do <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> (hard refresh).</li>
+                    <li>Use the Execute Now (<i class="bi bi-play-fill"></i>) button on the Tasks page to run a task manually.</li>
+                    <li>Inactive tasks will not be executed by the Dashboard.</li>
+                    <li>When importing, servers must already exist in the system before tasks that reference them.</li>
                 </ul>
             </div>
         </div>
         <?php elseif ($page === 'settings'): ?>
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="mb-0"><i class="bi bi-gear me-2"></i>Pengaturan</h4>
+            <h4 class="mb-0"><i class="bi bi-gear me-2"></i>Settings</h4>
         </div>
         <div class="card">
             <div class="card-body" id="settings-container">
-                <div class="text-center text-muted py-3">Memuat...</div>
+                <div class="text-center text-muted py-3">Loading...</div>
             </div>
         </div>
         <?php endif; ?>
@@ -586,15 +681,15 @@ function page_title($p) {
 <div class="modal fade" id="serverModal" tabindex="-1">
 <div class="modal-dialog"><div class="modal-content">
 <form id="serverForm" onsubmit="return saveServer(event)">
-<div class="modal-header"><h5 class="modal-title" id="serverModalTitle">Tambah Server</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+<div class="modal-header"><h5 class="modal-title" id="serverModalTitle">Add Server</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
 <div class="modal-body">
 <input type="hidden" name="id" id="server-id">
-<div class="mb-3"><label class="form-label">Nama Server</label><input type="text" class="form-control" name="name" id="server-name" required></div>
-<div class="mb-3"><label class="form-label">URL Dasar</label><input type="url" class="form-control" name="base_url" id="server-base-url" placeholder="https://api.example.com" required></div>
+<div class="mb-3"><label class="form-label">Server Name</label><input type="text" class="form-control" name="name" id="server-name" required></div>
+<div class="mb-3"><label class="form-label">Base URL</label><input type="url" class="form-control" name="base_url" id="server-base-url" placeholder="https://api.example.com" required></div>
 </div>
 <div class="modal-footer">
-<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-<button type="submit" class="btn btn-primary">Simpan</button>
+<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+<button type="submit" class="btn btn-primary">Save</button>
 </div>
 </form></div></div>
 </div>
@@ -602,44 +697,64 @@ function page_title($p) {
 <div class="modal fade" id="taskModal" tabindex="-1">
 <div class="modal-dialog"><div class="modal-content">
 <form id="taskForm" onsubmit="return saveTask(event)">
-<div class="modal-header"><h5 class="modal-title" id="taskModalTitle">Tambah Tugas</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+<div class="modal-header"><h5 class="modal-title" id="taskModalTitle">Add Task</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
 <div class="modal-body">
 <input type="hidden" name="id" id="task-id">
 <div class="row">
 <div class="col-md-6 mb-3"><label class="form-label">Server</label><select class="form-select" name="server_id" id="task-server" required></select></div>
-<div class="col-md-6 mb-3"><label class="form-label">Judul</label><input type="text" class="form-control" name="title" id="task-title" required></div>
+<div class="col-md-6 mb-3"><label class="form-label">Title</label><input type="text" class="form-control" name="title" id="task-title" required></div>
 </div>
-<div class="mb-3"><label class="form-label">Path API</label><input type="text" class="form-control" name="path" id="task-path" placeholder="/api/endpoint" required></div>
+<div class="mb-3"><label class="form-label">API Path</label><input type="text" class="form-control" name="path" id="task-path" placeholder="/api/endpoint" required></div>
 <div class="row">
-<div class="col-md-4 mb-3"><label class="form-label">Interval (detik) <small class="text-muted">sukses</small></label><input type="number" class="form-control" name="execute_interval" id="task-interval" value="60" min="1" required></div>
-<div class="col-md-4 mb-3"><label class="form-label">Interval (detik) <small class="text-muted">gagal</small></label><input type="number" class="form-control" name="error_interval" id="task-error-interval" value="30" min="1" required></div>
-<div class="col-md-4 mb-3"><label class="form-label">Batas Waktu (ms)</label><input type="number" class="form-control" name="timeout" id="task-timeout" value="5000" min="100" required></div>
+<div class="col-md-4 mb-3"><label class="form-label">Interval (sec) <small class="text-muted">success</small></label><input type="number" class="form-control" name="execute_interval" id="task-interval" value="60" min="1" required></div>
+<div class="col-md-4 mb-3"><label class="form-label">Interval (sec) <small class="text-muted">error</small></label><input type="number" class="form-control" name="error_interval" id="task-error-interval" value="30" min="1" required></div>
+<div class="col-md-4 mb-3"><label class="form-label">Timeout (ms)</label><input type="number" class="form-control" name="timeout" id="task-timeout" value="5000" min="100" required></div>
 </div>
 </div>
 <div class="modal-footer">
-<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-<button type="submit" class="btn btn-primary">Simpan</button>
+<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+<button type="submit" class="btn btn-primary">Save</button>
 </div>
 </form></div></div>
 </div>
 
 <div class="modal fade" id="logModal" tabindex="-1">
 <div class="modal-dialog modal-xl"><div class="modal-content">
-<div class="modal-header"><h5 class="modal-title">Detail Log</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+<div class="modal-header"><h5 class="modal-title">Log Detail</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
 <div class="modal-body" id="log-detail-body">
-<div class="text-center text-muted py-3">Memuat...</div>
+<div class="text-center text-muted py-3">Loading...</div>
 </div>
-<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button></div>
+<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
 </div></div>
 </div>
 
 <div class="modal fade" id="deleteModal" tabindex="-1">
 <div class="modal-dialog modal-sm"><div class="modal-content">
-<div class="modal-header"><h5 class="modal-title">Konfirmasi Hapus</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-<div class="modal-body" id="deleteModalBody">Yakin ingin menghapus?</div>
+<div class="modal-header"><h5 class="modal-title">Confirm Delete</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+<div class="modal-body" id="deleteModalBody">Are you sure?</div>
 <div class="modal-footer">
-<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-<button type="button" class="btn btn-danger" id="deleteConfirmBtn">Hapus</button>
+<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+<button type="button" class="btn btn-danger" id="deleteConfirmBtn">Delete</button>
+</div>
+</div></div>
+</div>
+
+<div class="modal fade" id="importModal" tabindex="-1">
+<div class="modal-dialog"><div class="modal-content">
+<div class="modal-header"><h5 class="modal-title" id="importModalTitle">Import</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+<div class="modal-body">
+    <p class="text-muted small mb-3" id="importModalDesc">Select a .txt file to import. Use the provided template.</p>
+    <input type="hidden" id="import-type">
+    <div class="mb-3">
+        <label class="form-label">Choose File</label>
+        <input type="file" class="form-control" id="import-file" accept=".txt">
+    </div>
+    <div id="import-result" class="d-none"></div>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" onclick="downloadImportTemplate()"><i class="bi bi-download"></i> Download Template</button>
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+    <button type="button" class="btn btn-primary" onclick="submitImport()"><i class="bi bi-upload"></i> Import</button>
 </div>
 </div></div>
 </div>
