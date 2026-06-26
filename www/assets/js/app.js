@@ -109,6 +109,13 @@ function refreshDashboard() {
     }).catch(e => toast('Failed to load tasks: ' + e.message, 'error'));
 }
 
+function effectiveNext(nextExec, interval) {
+    const now = Date.now();
+    const intMs = interval * 1000;
+    while (nextExec <= now - intMs) nextExec += intMs;
+    return nextExec;
+}
+
 function renderActiveTasks() {
     const cont = document.getElementById('active-tasks-container');
     if (!activeTasks.length) {
@@ -120,7 +127,7 @@ function renderActiveTasks() {
     let html = '<div class="active-tasks-grid">';
 
     activeTasks.forEach(t => {
-        const nextExec = toDate(t.next_execution_at)?.getTime() ?? now;
+        const nextExec = effectiveNext(toDate(t.next_execution_at)?.getTime() ?? now, t.execute_interval_sec);
         const lastExec = toDate(t.last_executed_at)?.getTime() ?? null;
         const remaining = Math.max(0, Math.floor((nextExec - now) / 1000));
         const total = lastExec ? Math.max(1, Math.round((nextExec - lastExec) / 1000)) : t.execute_interval_sec;
@@ -133,7 +140,6 @@ function renderActiveTasks() {
         else if (remaining <= 10) fillClass = 'warning';
 
         const offset = isExecuting ? 0 : (pct / 100) * circ;
-        const label = isExecuting ? '...' : `${remaining}s`;
 
         html += `<div class="task-donut-card" data-task-id="${t.id}">
             <div class="donut">
@@ -166,8 +172,8 @@ function tick() {
 
     activeTasks.forEach(t => {
         if (taskExecuting[t.id]) return;
-        const nextExec = toDate(t.next_execution_at)?.getTime() ?? now;
-        if (nextExec <= now) {
+        const nextExec = effectiveNext(toDate(t.next_execution_at)?.getTime() ?? now, t.execute_interval_sec);
+        if (nextExec <= now && now - nextExec < 1500) {
             changed = true;
             executeTask(t);
         }

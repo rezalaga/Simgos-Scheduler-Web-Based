@@ -388,7 +388,7 @@ if (isset($_GET['action'])) {
             $content = file_get_contents($_FILES['file']['tmp_name']);
             $lines = explode("\n", $content);
             $count = 0;
-            $servers = $pdo->query("SELECT id, name FROM servers")->fetchAll(PDO::FETCH_KEY_PAIR);
+            $servers = $pdo->query("SELECT name, id FROM servers")->fetchAll(PDO::FETCH_KEY_PAIR);
             $stmt = $pdo->prepare("INSERT INTO tasks (server_id, title, path, method, execute_interval_sec, error_interval_sec, response_timeout_ms, next_execution_at) VALUES (?, ?, ?, 'GET', ?, ?, ?, ?)");
             foreach ($lines as $line) {
                 $line = trim($line);
