@@ -611,20 +611,20 @@ function page_title($p) {
         <div class="card mb-3">
             <div class="card-body">
                 <h5 class="card-title">1. Add a Server</h5>
-                <p class="card-text">Go to <strong>Servers</strong>, click <span class="badge bg-primary"><i class="bi bi-plus-lg"></i> Add Server</span>. Enter the server name and API base URL. You can also <span class="badge bg-outline-secondary"><i class="bi bi-upload"></i> Import</span> multiple servers from a .txt file using the provided template.</p>
+                <p class="card-text">Go to <strong>Servers</strong>, click <span class="badge bg-primary"><i class="bi bi-plus-lg"></i> Add Server</span>. Enter the server name and API base URL. You can also <span class="badge border border-secondary text-secondary"><i class="bi bi-upload"></i> Import</span> multiple servers from a .txt file using the provided template.</p>
             </div>
         </div>
         <div class="card mb-3">
             <div class="card-body">
                 <h5 class="card-title">2. Create a Task</h5>
-                <p class="card-text">Go to <strong>Tasks</strong>, click <span class="badge bg-primary"><i class="bi bi-plus-lg"></i> Add</span>. Select a server, enter the task title, API path, execution interval (seconds), and timeout. You can also <span class="badge bg-outline-secondary"><i class="bi bi-upload"></i> Import</span> multiple tasks from a .txt file.</p>
+                <p class="card-text">Go to <strong>Tasks</strong>, click <span class="badge bg-primary"><i class="bi bi-plus-lg"></i> Add</span>. Select a server, enter the task title, API path, execution interval (seconds), and timeout. You can also <span class="badge border border-secondary text-secondary"><i class="bi bi-upload"></i> Import</span> multiple tasks from a .txt file.</p>
                 <p class="text-muted small mb-0">Note: All tasks use GET method. Headers and body are not required.</p>
             </div>
         </div>
         <div class="card mb-3">
             <div class="card-body">
                 <h5 class="card-title">3. Import from File</h5>
-                <p class="card-text">Click <span class="badge bg-outline-secondary"><i class="bi bi-upload"></i> Import</span> on the Servers or Tasks page. A modal will open where you can download the template file. Edit the template with your data, then upload it. The template uses pipe (<code>|</code>) separated values. Lines starting with <code>#</code> are ignored as comments.</p>
+                <p class="card-text">Click <span class="badge border border-secondary text-secondary"><i class="bi bi-upload"></i> Import</span> on the Servers or Tasks page. A modal will open where you can download the template file. Edit the template with your data, then upload it. The template uses pipe (<code>|</code>) separated values. Lines starting with <code>#</code> are ignored as comments.</p>
             </div>
         </div>
         <div class="card mb-3">
