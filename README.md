@@ -87,3 +87,9 @@ Container akan:
 ## Pengembang
 
 **Tim IT RSU Martha Friska Multatuli**
+
+## Lisensi
+
+Hak cipta © 2026 - **RSU Martha Friska Multatuli**. Dikembangkan untuk keperluan internal.
+
+Repo ini bersifat **open source** — siapa pun boleh menggunakan, mengembangkan, memodifikasi, dan mendistribusikan ulang.
