@@ -14,7 +14,10 @@ try {
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
     $tz = $pdo->query("SELECT setting_value FROM settings WHERE setting_key = 'timezone'")->fetchColumn();
-    if ($tz) date_default_timezone_set($tz);
+    if ($tz) {
+        date_default_timezone_set($tz);
+        $pdo->exec("SET time_zone = '{$tz}'");
+    }
 } catch (PDOException $e) {
     if (php_sapi_name() === 'cli') {
         die("DB Connection failed: " . $e->getMessage() . "\n");

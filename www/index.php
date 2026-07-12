@@ -3,7 +3,8 @@ require_once __DIR__ . '/config.php';
 
 function fmtDate($dt) {
     if (!$dt) return null;
-    return str_replace(' ', 'T', $dt) . 'Z';
+    $d = new DateTime($dt);
+    return $d->format('Y-m-d\TH:i:sP');
 }
 
 function fmtDates(&$rows, $keys) {
@@ -123,7 +124,7 @@ if (isset($_GET['action'])) {
                 throw new Exception('Headers must be valid JSON');
             }
 
-            $next_exec = gmdate('Y-m-d H:i:s', time() + $execute_interval);
+            $next_exec = date('Y-m-d H:i:s', time() + $execute_interval);
 
             if ($id) {
                 $stmt = $pdo->prepare("
@@ -314,7 +315,7 @@ if (isset($_GET['action'])) {
                 $elapsed = $task['error_interval_sec'];
             }
 
-            $newNext = gmdate('Y-m-d H:i:s', time() + $elapsed);
+            $newNext = date('Y-m-d H:i:s', time() + $elapsed);
             $newNextFmt = fmtDate($newNext);
             $pdo->prepare("UPDATE tasks SET last_executed_at = NOW(), next_execution_at = ? WHERE id = ?")->execute([$newNext, $taskId]);
 
@@ -403,7 +404,7 @@ if (isset($_GET['action'])) {
                     $timeout = (int)($parts[5] ?? 5000);
                     $serverId = $servers[$serverName] ?? null;
                     if ($serverId) {
-                        $next = gmdate('Y-m-d H:i:s', time() + $interval);
+                        $next = date('Y-m-d H:i:s', time() + $interval);
                         $stmt->execute([$serverId, $title, $path, $interval, $errorInterval, $timeout, $next]);
                         $count++;
                     }
@@ -649,8 +650,8 @@ function page_title($p) {
         <div class="card mb-3">
             <div class="card-body">
                 <h5 class="card-title">7. Timezone Settings</h5>
-                <p class="card-text">Go to <strong>Settings</strong> to change the timezone. This affects the clock display at the top right and the task execution schedule.</p>
-                <p class="text-muted small mb-0">Note: All time data is stored in UTC in the database. The timezone only affects the display, not the data.</p>
+                <p class="card-text">Go to <strong>Settings</strong> to change the timezone. This affects the clock display, task execution schedule, and all stored timestamps.</p>
+                <p class="text-muted small mb-0">Note: All timestamps are stored and displayed in the configured timezone. MySQL TIMESTAMP columns still store values in UTC internally and convert to the configured timezone automatically.</p>
             </div>
         </div>
         <div class="card">

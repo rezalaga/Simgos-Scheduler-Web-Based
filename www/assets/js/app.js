@@ -56,7 +56,8 @@ function formatDate(d) {
     try {
         const dt = toDate(d);
         if (!dt || isNaN(dt.getTime())) return d;
-        return dt.toLocaleString();
+        const tz = document.getElementById('sidebar-tz-iana')?.textContent;
+        return dt.toLocaleString('id', { timeZone: tz, year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
     } catch (_) { return d; }
 }
 
