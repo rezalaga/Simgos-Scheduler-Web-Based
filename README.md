@@ -80,7 +80,7 @@ Container akan:
 
 - **Halaman Dashboard harus tetap terbuka** agar task berjalan otomatis (JS `setInterval` 1s)
 - Setelah perubahan JS, lakukan **Cmd+Shift+R** (hard refresh)
-- Semua waktu tersimpan di UTC di database; zona waktu hanya memengaruhi tampilan
+- Semua waktu tersimpan dalam zona waktu yang dipilih di database
 - Task menggunakan metode **GET** (header & body tidak diperlukan)
 - `scheduler.php` tidak digunakan — file referensi saja
 
